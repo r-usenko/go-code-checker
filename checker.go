@@ -1,0 +1,213 @@
+package codeChecker
+
+import (
+	"bytes"
+	"errors"
+	"io/fs"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"sync"
+
+	"golang.org/x/mod/modfile"
+)
+
+const (
+	GoMod     = "go.mod"
+	GoModSum  = "go.sum"
+	GoWork    = "go.work"
+	GoWorkSum = "go.work.sum"
+)
+
+var ErrDetected = errors.New("changes detected")
+
+var muMutex sync.Mutex
+
+type fData struct {
+	filename string
+	info     os.FileInfo
+	data     []byte
+}
+
+func getFiles(dir string, files []string) map[string]fData {
+	var results = make(map[string]fData)
+
+	for _, file := range files {
+		filename := dir + "/" + file
+
+		fi, err := os.Lstat(filename)
+		if err != nil {
+			if _, ok := err.(*fs.PathError); ok {
+				continue
+			}
+
+			panic(err)
+		}
+
+		data, err := os.ReadFile(filename)
+		if err != nil {
+			panic(err)
+		}
+
+		results[file] = fData{
+			filename: filename,
+			info:     fi,
+			data:     data,
+		}
+	}
+
+	return results
+}
+
+func (m *module) joinRequire() (err error) {
+	muMutex.Lock()
+	defer muMutex.Unlock()
+
+	dir, err := filepath.Abs(m.path)
+	if err != nil {
+		return err
+	}
+
+	var fileList = []string{
+		GoMod,
+		GoModSum,
+		GoWork,
+		GoWorkSum,
+	}
+
+	filesBefore := getFiles(dir, fileList)
+
+	fi, ok := filesBefore[GoMod]
+	if !ok {
+		return errors.New("missing go.mod in " + dir)
+	}
+
+	f, err := modfile.Parse(fi.filename, fi.data, nil)
+	if err != nil {
+		return err
+	}
+
+	for _, r := range f.Require {
+		copyMod := r.Mod
+		if copyMod.Path == "" {
+			continue
+		}
+
+		err = f.DropRequire(copyMod.Path)
+		if err != nil {
+			return err
+		}
+
+		err = f.AddRequire(copyMod.Path, copyMod.Version)
+		if err != nil {
+			return err
+		}
+	}
+
+	f.Cleanup()
+	f.SortBlocks()
+
+	modified, err := f.Format()
+	if err != nil {
+		return err
+	}
+
+	//TODO How to check without modify files?
+
+	//Save modified for tidy
+	err = os.WriteFile(fi.filename, modified, fi.info.Mode())
+	if err != nil {
+		return err
+	}
+
+	//Revert all changes on exit
+	defer func() {
+		filesAfter := getFiles(dir, fileList)
+
+		if len(filesAfter) != len(filesBefore) {
+			err = errors.Join(err, ErrDetected)
+		}
+
+		var fileAfter fData
+		for name, fileBefore := range filesBefore {
+			//Revert
+			err = errors.Join(err, os.WriteFile(fileBefore.filename, fileBefore.data, fileBefore.info.Mode()))
+
+			fileAfter, ok = filesAfter[name]
+			if !ok {
+				err = errors.Join(err, ErrDetected)
+				continue
+			}
+
+			if bytes.Compare(fileAfter.data, fileBefore.data) != 0 {
+				err = errors.Join(err, ErrDetected)
+				continue
+			}
+		}
+	}()
+
+	//Call Tidy
+	cmd := exec.Command("go", "mod", "tidy")
+	cmd.Dir = dir
+	err = cmd.Run()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *module) formatImport() error {
+	dir, err := filepath.Abs(m.path)
+	if err != nil {
+		return err
+	}
+
+	var args []string
+	if m.localPrefix != "" {
+		args = append(args, []string{"local", m.localPrefix}...)
+	}
+
+	args = append(args, []string{"v", "l", m.path}...)
+
+	var out strings.Builder
+
+	cmd := exec.Command("goimports", args...)
+	cmd.Dir = dir
+	cmd.Stdout = &out
+
+	if err = cmd.Run(); err != nil {
+		if erc, ok := err.(*exec.ExitError); ok {
+			if erc.ExitCode() == 2 {
+				return nil
+			}
+		}
+
+		return err
+	}
+
+	return nil
+}
+
+func (m *module) Run() error {
+	if m.withJoin {
+		return m.joinRequire()
+	}
+
+	if m.withImports {
+		return m.formatImport()
+	}
+
+	return nil
+}
+
+//goland:noinspection GoExportedFuncWithUnexportedType
+func New(path string, opts ...Option) *module {
+	m := &module{
+		path: path,
+	}
+	m.apply(opts)
+
+	return m
+}
