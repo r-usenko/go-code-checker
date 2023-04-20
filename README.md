@@ -2,5 +2,9 @@
 
 ```shell
 go install ./...
-gocodechecker
+```
+
+Example for sort go.mod and imports with repo
+```shell
+gocodechecker -tidy=true -imports-prefix=github.com/r-usenko
 ```
