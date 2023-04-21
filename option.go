@@ -1,4 +1,4 @@
-package codeChecker
+package godeFmt
 
 type module struct {
 	path        string

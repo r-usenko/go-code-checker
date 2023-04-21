@@ -1,4 +1,4 @@
-package codeChecker
+package godeFmt
 
 import (
 	"bytes"

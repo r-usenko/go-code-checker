@@ -1,4 +1,4 @@
-module github.com/r-usenko/go-code-checker
+module github.com/r-usenko/godeFmt
 
 go 1.20
 
