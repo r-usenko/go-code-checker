@@ -17,5 +17,6 @@ jobs:
           go generate version.go
           git config user.email $GITHUB_ACTOR
           git config user.name $GITHUB_ACTOR
+          git add .
           git commit -m "pre-release"
           git push origin main
