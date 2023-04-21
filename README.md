@@ -1,5 +1,3 @@
-# go-code-checker
-
 ```shell
 go install github.com/r-usenko/go-code-checker/cmd/...@latest
 ```

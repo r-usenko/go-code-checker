@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -195,6 +195,12 @@ func (m *module) joinRequire(isWrite bool) (err error) {
 	return nil
 }
 
+type messageChan struct {
+	prefix  string
+	data    []byte
+	isError bool
+}
+
 func (m *module) formatImport(isWrite bool) (err error) {
 	muMutex.Lock()
 	defer muMutex.Unlock()
@@ -207,14 +213,11 @@ func (m *module) formatImport(isWrite bool) (err error) {
 	var args = []string{binaryGoImportsParamList} //list only
 
 	if m.localPrefix != "" {
-		args = append(args, []string{binaryGoImportsParamLocal, fmt.Sprintf(`"%s"`, m.localPrefix)}...)
+		args = append(args, []string{binaryGoImportsParamLocal, m.localPrefix}...)
 	}
 
-	outCh := make(chan struct {
-		prefix string
-		data   []byte
-	})
-	errCh := make(chan error)
+	outCh := make(chan messageChan)
+	errCh := make(chan messageChan)
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 
@@ -227,27 +230,43 @@ func (m *module) formatImport(isWrite bool) (err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	var files []string
+	var listOutput string
+	var errCmd error
 
 	go func() {
 		defer func() {
 			wg.Done()
 		}()
 		for {
+			var proc bool
+
 			select {
 			case <-ctx.Done():
 				return
 			case p := <-outCh:
-				if args[0] == binaryGoImportsParamList {
-					files = append(files, string(p.data))
+				proc = true
+				if p.isError {
+					m.logger.Printf("WTF [%s]:\n%s", p.prefix, p.data)
+				} else {
+					if args[0] == binaryGoImportsParamList {
+						listOutput += string(p.data)
+					}
+					m.logger.Printf("PROCESS [%s]: %s", p.prefix, p.data)
 				}
-
-				m.logger.Printf("PROCESS [%s]: %s", p.prefix, p.data)
-			case errVal := <-errCh:
-				_ = errVal //TODO EOF, ExitStatus
-				//m.logger.Println("ERROR:", errVal)
-
 			default:
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			case errVal := <-errCh:
+				proc = true
+				_ = errVal
+				//m.logger.Printf("ERROR [%s]:\n%s", errVal.prefix, errVal.data)
+			default:
+			}
+
+			if !proc {
 				time.Sleep(time.Millisecond)
 			}
 		}
@@ -260,15 +279,15 @@ func (m *module) formatImport(isWrite bool) (err error) {
 		dir,
 	}...)
 
-	m.runGoImport("LIST", outCh, errCh, dir, args)
+	errCmd = m.callStart("LIST", outCh, errCh, dir, args)
 
+	files := strings.Split(strings.TrimSpace(listOutput), "\n")
+	m.logger.Printf("COUNT [LIST]: %d", len(files))
 	if len(files) == 0 {
 		return
 	}
 
 	args[0] = binaryGoImportsParamWrite //replace list to write flag
-	lastArgIndex := len(args) - 1
-
 	processed := getFiles("", files)
 
 	defer func() {
@@ -289,91 +308,213 @@ func (m *module) formatImport(isWrite bool) (err error) {
 	}()
 
 	//First preprocess
-	m.runGoImport("GROUP", outCh, errCh, dir, args) //TODO we cant separate parse and save errors (this changes will not been reverted)
+	errCmd = m.callStart("GROUP", outCh, errCh, dir, args) //TODO we cant separate parse and save errors (this changes will not been reverted)
 	after := getFiles("", files)
 
 	for _, fi := range after {
-		args[lastArgIndex] = fi.filename //overwrite filename
-		fi.data = reImport.ReplaceAllFunc(fi.data, func(data []byte) []byte {
+		m.logger.Printf("REPLACE [GROUP]: %s", fi.filename)
+
+		newData := reImport.ReplaceAllFunc(fi.data, func(data []byte) []byte {
 			return reComment.ReplaceAll(data, nil)
 		})
-		fi.data = reImport.ReplaceAllFunc(fi.data, func(data []byte) []byte {
+		newData = reImport.ReplaceAllFunc(newData, func(data []byte) []byte {
 			return reEmptyLines.ReplaceAll(data, nil)
 		})
-
-		if err = os.WriteFile(fi.filename, fi.data, fi.info.Mode()); err != nil {
+		if err = os.WriteFile(fi.filename, newData, fi.info.Mode()); err != nil {
 			return //Rollback
 		}
 	}
 
-	m.runGoImport("SORT", outCh, errCh, dir, args) //TODO we cant separate parse and save errors (this changes will not been reverted)
+	errCmd = m.callStart("SORT", outCh, errCh, dir, args) //TODO we cant separate parse and save errors (this changes will not been reverted)
+
+	_ = errCmd //TODO ignore exit error
+	return
+}
+
+func readBuff(pipe io.ReadCloser, buff []byte, buffSize int) (message []byte, errOut error) {
+	var n int
+	for {
+		n, errOut = pipe.Read(buff)
+		if errOut != nil {
+			return
+		}
+
+		message = append(message, buff[:n]...)
+		if buffSize > n {
+			return
+		}
+	}
+}
+
+func (m *module) callOutput(prefix string, outCh, errCh chan messageChan, dir string, args []string) (onExit error) {
+	cmd := exec.Command(BinaryGoImports, args...)
+	cmd.Dir = dir
+
+	m.logger.Println()
+	m.logger.Printf("RUN [%s]: %s", prefix, cmd.String())
+
+	var data []byte
+	data, onExit = cmd.Output()
+
+	err := onExit.(*exec.ExitError)
+
+	errCh <- messageChan{
+		prefix:  prefix,
+		data:    err.Stderr,
+		isError: true,
+	}
+	outCh <- messageChan{
+		prefix:  prefix,
+		data:    data,
+		isError: false,
+	}
 
 	return
 }
 
-func (m *module) runGoImport(prefix string, outCh chan struct {
-	prefix string
-	data   []byte
-}, errCh chan error, dir string, args []string) {
+func (m *module) callRun(prefix string, outCh, errCh chan messageChan, dir string, args []string) (onExit error) {
 	cmd := exec.Command(BinaryGoImports, args...)
 	cmd.Dir = dir
 
-	ctx, cancel := context.WithCancel(context.Background())
+	m.logger.Println()
+	m.logger.Printf("RUN [%s]: %s", prefix, cmd.String())
+
+	var err, out strings.Builder
+	cmd.Stdout = &out
+	cmd.Stderr = &err
+	defer func() {
+		errCh <- messageChan{
+			prefix:  prefix,
+			data:    []byte(err.String()),
+			isError: true,
+		}
+		outCh <- messageChan{
+			prefix:  prefix,
+			data:    []byte(out.String()),
+			isError: false,
+		}
+	}()
+
+	onExit = cmd.Run()
+
+	return
+}
+
+func (m *module) callStart(prefix string, outCh, errCh chan messageChan, dir string, args []string) (onExit error) {
+	cmd := exec.Command(BinaryGoImports, args...)
+	cmd.Dir = dir
+
+	m.logger.Println()
+	m.logger.Printf("RUN [%s]: %s", prefix, cmd.String())
 
 	var err error
 	var pOut io.ReadCloser
+	var pErr io.ReadCloser
 
 	defer func() {
 		_ = pOut.Close()
-		cancel()
-		errCh <- err
+		_ = pErr.Close()
+		onExit = err
 	}()
 
 	pOut, err = cmd.StdoutPipe()
 	if err != nil {
 		return
 	}
+	pErr, err = cmd.StderrPipe()
+	if err != nil {
+		return
+	}
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
+	wgReaderEnd := sync.WaitGroup{}
+	wgReaderEnd.Add(1)
+
+	var stopReadSignalErr = make(chan struct{})
+	var stopReadSignal = make(chan struct{})
+
+	bufferSize := 1024
 
 	go func() {
-		var n int
-		var buff = make([]byte, 1024)
-		var errPipe error
-		defer wg.Done()
+		var buff = make([]byte, bufferSize)
+		var errOut error
+		var data []byte
+
+		defer wgReaderEnd.Done()
 
 		for {
 			select {
-			case <-ctx.Done():
+			case <-stopReadSignal:
+				return
+			case <-stopReadSignalErr:
 				return
 			default:
-				n, errPipe = pOut.Read(buff)
-				if errPipe != nil {
-					errCh <- errPipe
+				data, errOut = readBuff(pOut, buff, bufferSize)
+				if errOut != nil {
+					time.Sleep(time.Millisecond)
+					continue
 				}
-				outCh <- struct {
-					prefix string
-					data   []byte
-				}{
+
+				//Data exist, send it to channel
+				outCh <- messageChan{
 					prefix: prefix,
-					data:   buff[:n],
+					data:   data,
 				}
 			}
 		}
 	}()
+
+	go func() {
+		var buff = make([]byte, bufferSize)
+		var errOut error
+		var data []byte
+
+		defer wgReaderEnd.Done()
+
+		for {
+			select {
+			case <-stopReadSignal:
+				return
+			case <-stopReadSignalErr:
+				return
+			default:
+				data, errOut = readBuff(pErr, buff, bufferSize)
+				if errOut != nil {
+					time.Sleep(time.Millisecond)
+					continue
+				}
+
+				//Data exist, send it to channel
+				errCh <- messageChan{
+					isError: true,
+					prefix:  prefix,
+					data:    data,
+				}
+			}
+		}
+	}()
+
 	if err = cmd.Start(); err != nil {
 		return
 	}
 
-	//Wait Command
+	//Wait Command Finished
 	if err = cmd.Wait(); err != nil {
+		//exitCode := err.(*exec.ExitError).ExitCode()
+		//m.logger.Printf("EXIT ERROR [%s]", prefix)
+
+		//Stop reading
+		stopReadSignalErr <- struct{}{}
 		return
 	}
 
+	//m.logger.Printf("EXIT SUCCESS [%s]", prefix)
+	//Pipe already closed
+	stopReadSignal <- struct{}{}
+
 	//Wait stop sending
-	cancel()
-	wg.Wait()
+	wgReaderEnd.Wait()
+
+	return
 }
 
 func (m *module) Run(state bool) (duration time.Duration, err error) {
