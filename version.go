@@ -1,4 +1,4 @@
 package godeFmt
 
-//go:generate git describe --tags --abbrev=0
+//go:generate go run ./cmd/set-version.go ${GITHUB_REF_NAME}
 var Version = "v0.0.0"
