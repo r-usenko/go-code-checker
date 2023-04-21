@@ -17,8 +17,8 @@ jobs:
         run: |
           echo "github.com/$GITHUB_REPOSITORY@$GITHUB_REF_NAME"
           go generate version.go
-          git config user.email $GITHUB_ACTOR@github.com
-          git config user.name $GITHUB_ACTOR
+          git config user.email "$GITHUB_ACTOR@github.com"
+          git config user.name "$GITHUB_ACTOR"
           git add .
           git commit -m "pre-release"
           git push origin main
