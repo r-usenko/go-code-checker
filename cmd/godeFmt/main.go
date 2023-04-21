@@ -2,7 +2,9 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
@@ -10,17 +12,35 @@ import (
 	"github.com/r-usenko/godeFmt"
 )
 
-var dir = flag.String("dir", ".", "root directory with go.mod")
-
-var tidy = flag.Bool("tidy", false, "use go mod tidy")
-
-var imp = flag.Bool("imports", false, "use goimports")
-var impPrefix = flag.String("imports-prefix", "", "group by module prefix")
-
-var write = flag.Bool("write", false, "apply changes to file")
+var dir = flag.String("dir", ".", "Root directory with go.mod")
+var tidy = flag.Bool("tidy", false, "Use 'go mod tidy'")
+var imp = flag.Bool("imports", false, "Use 'goimports'")
+var impPrefix = flag.String("imports-prefix", "", "Use 'goimports' and group by module prefix")
+var write = flag.Bool("write", false, "Applies changes to files. Otherwise, an attempt will be made to recover the files if a formatter error is can be detected")
+var _ = flag.Bool("version", false, "Print version")
 
 func main() {
 	flag.Parse()
+	if flag.NArg() == 0 {
+		flag.Usage()
+		os.Exit(2)
+	}
+	switch flag.Arg(0) {
+	case "version", "-version", "--version":
+		fmt.Println(godeFmt.Version)
+		os.Exit(0)
+	default:
+		var exists bool
+		flag.VisitAll(func(f *flag.Flag) {
+			if flag.Arg(0) == f.Name {
+				exists = true
+			}
+		})
+		if !exists {
+			flag.Usage()
+			os.Exit(2)
+		}
+	}
 
 	var opts = []godeFmt.Option{
 		godeFmt.WithLogger(log.Default()),
