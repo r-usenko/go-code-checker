@@ -5,7 +5,7 @@ on:
     types: [created]
 
 jobs:
-  movetag:
+  patch-version:
     runs-on: ubuntu-latest
 
     steps:
@@ -13,10 +13,5 @@ jobs:
 
     - name: Get major version num and update tag
       run: |
-        VERSION=${GITHUB_REF#refs/tags/}
-        MAJOR=${VERSION%%.*}
-        run: |
-          echo ": ${MAJOR}"
-          echo ": ${VERSION}"
-          echo ": $GITHUB_REF_NAME"
-          echo ": ${{  github.ref_name }}"
+        echo ": $GITHUB_REPOSITORY@$GITHUB_REF_NAME"
+        echo ::set-env name=LD_FLAGS::"-X github.com/r-usenko/godeFmt.Version=$GITHUB_REF_NAME"
