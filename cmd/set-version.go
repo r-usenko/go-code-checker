@@ -14,7 +14,7 @@ func main() {
 		panic(errors.New("invalid argument with version"))
 	}
 
-	if !regexp.MustCompile(`^v\.\d+\.\d+\.\d+$`).MatchString(os.Args[1]) {
+	if !regexp.MustCompile(`^v\d+\.\d+\.\d+$`).MatchString(os.Args[1]) {
 		panic(fmt.Errorf("invalid version %q", os.Args[1]))
 	}
 
