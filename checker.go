@@ -7,8 +7,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/mod/modfile"
 )
@@ -18,6 +20,18 @@ const (
 	GoModSum  = "go.sum"
 	GoWork    = "go.work"
 	GoWorkSum = "go.work.sum"
+)
+
+const (
+	BinaryGo          = "go"
+	binaryGoParamMod  = "mod"
+	binaryGoParamTidy = "tidy"
+
+	BinaryGoImports            = "goimports"
+	binaryGoImportsParamList   = "-l"
+	binaryGoImportsParamWrite  = "-w"
+	binaryGoImportsParamLocal  = "-local"
+	binaryGoImportsParamFormat = "--format-only"
 )
 
 var ErrDetected = errors.New("changes detected")
@@ -30,11 +44,21 @@ type fData struct {
 	data     []byte
 }
 
+var (
+	reImport     = regexp.MustCompile(`(?sm)^import\s\(\n(.*?)\)`)
+	reComment    = regexp.MustCompile(`\s(//[^\n]+)|(/\*[\s\S]*?\*/)`)
+	reEmptyLines = regexp.MustCompile(`(?sm)^\s*\n`)
+)
+
 func getFiles(dir string, files []string) map[string]fData {
 	var results = make(map[string]fData)
 
+	if dir != "" {
+		dir = "/" + dir
+	}
+
 	for _, file := range files {
-		filename := dir + "/" + file
+		filename := dir + file
 
 		fi, err := os.Lstat(filename)
 		if err != nil {
@@ -60,7 +84,7 @@ func getFiles(dir string, files []string) map[string]fData {
 	return results
 }
 
-func (m *module) joinRequire() (err error) {
+func (m *module) joinRequire(isWrite bool) (err error) {
 	muMutex.Lock()
 	defer muMutex.Unlock()
 
@@ -121,8 +145,18 @@ func (m *module) joinRequire() (err error) {
 		return err
 	}
 
-	//Revert all changes on exit
 	defer func() {
+		//If we had error on save modified or go mod tidy, rollback all affected files
+		if err != nil {
+			isWrite = false
+		}
+
+		//We don't have error in write scenario, rollback don't needed
+		if isWrite {
+			return
+		}
+
+		//Rollback
 		filesAfter := getFiles(dir, fileList)
 
 		if len(filesAfter) != len(filesBefore) {
@@ -131,7 +165,7 @@ func (m *module) joinRequire() (err error) {
 
 		var fileAfter fData
 		for name, fileBefore := range filesBefore {
-			//Revert
+			//Rollback and join errors
 			err = errors.Join(err, os.WriteFile(fileBefore.filename, fileBefore.data, fileBefore.info.Mode()))
 
 			fileAfter, ok = filesAfter[name]
@@ -148,7 +182,7 @@ func (m *module) joinRequire() (err error) {
 	}()
 
 	//Call Tidy
-	cmd := exec.Command("go", "mod", "tidy")
+	cmd := exec.Command(BinaryGo, binaryGoParamMod, binaryGoParamTidy)
 	cmd.Dir = dir
 	err = cmd.Run()
 	if err != nil {
@@ -158,48 +192,116 @@ func (m *module) joinRequire() (err error) {
 	return nil
 }
 
-func (m *module) formatImport() error {
+func (m *module) formatImport(isWrite bool) (err error) {
+	muMutex.Lock()
+	defer muMutex.Unlock()
+
 	dir, err := filepath.Abs(m.path)
 	if err != nil {
-		return err
+		return
 	}
 
-	var args []string
+	var args = []string{binaryGoImportsParamList} //list only
+
 	if m.localPrefix != "" {
-		args = append(args, []string{"local", m.localPrefix}...)
+		args = append(args, []string{binaryGoImportsParamLocal, m.localPrefix}...)
 	}
 
-	args = append(args, []string{"v", "l", m.path}...)
+	//Get list for files
+	args = append(args, []string{binaryGoImportsParamFormat, dir}...)
+	out, err := runGoImport(dir, args)
+	if err != nil {
+		return
+	}
 
-	var out strings.Builder
+	args[0] = binaryGoImportsParamWrite //replace list to write flag
+	lastArgIndex := len(args) - 1
+	files := strings.Split(out, "\n")
+	processed := getFiles("", files)
 
-	cmd := exec.Command("goimports", args...)
-	cmd.Dir = dir
-	cmd.Stdout = &out
-
-	if err = cmd.Run(); err != nil {
-		if erc, ok := err.(*exec.ExitError); ok {
-			if erc.ExitCode() == 2 {
-				return nil
-			}
+	defer func() {
+		//If we had error on save modified or go mod tidy, rollback all affected files
+		if err != nil {
+			isWrite = false
 		}
 
-		return err
+		//We don't have error in write scenario, rollback don't needed
+		if isWrite {
+			return
+		}
+
+		//Rollback and join errors
+		for _, fi := range processed {
+			err = errors.Join(err, os.WriteFile(fi.filename, fi.data, fi.info.Mode()))
+		}
+	}()
+
+	for _, fi := range processed {
+		var newFileData = make([]byte, len(fi.data))
+		copy(newFileData, fi.data)
+
+		args[lastArgIndex] = fi.filename //overwrite filename
+
+		if _, err = runGoImport(dir, args); err != nil {
+			return //Rollback
+		}
+
+		newFileData = reImport.ReplaceAllFunc(newFileData, func(data []byte) []byte {
+			return reComment.ReplaceAll(data, nil)
+		})
+		newFileData = reImport.ReplaceAllFunc(newFileData, func(data []byte) []byte {
+			return reEmptyLines.ReplaceAll(data, nil)
+		})
+
+		if err = os.WriteFile(fi.filename, newFileData, fi.info.Mode()); err != nil {
+			return //Rollback
+		}
+
+		//We need run goimports again for sort and group without empty lines
+		if _, err = runGoImport(dir, args); err != nil {
+			return //Rollback
+		}
 	}
 
-	return nil
+	return
 }
 
-func (m *module) Run() error {
+func runGoImport(dir string, args []string) (out string, err error) {
+	cmd := exec.Command(BinaryGoImports, args...)
+	cmd.Dir = dir
+
+	cmd.Stdout = new(strings.Builder)
+	cmd.Stderr = new(strings.Builder)
+
+	if err = cmd.Run(); err == nil {
+		out = cmd.Stdout.(*strings.Builder).String()
+		return
+	}
+
+	if erc, ok := err.(*exec.ExitError); ok && erc.ExitCode() != 0 {
+		err = errors.New(cmd.Stderr.(*strings.Builder).String())
+	}
+
+	return
+}
+
+func (m *module) Run(state bool) (duration time.Duration, err error) {
+	start := time.Now()
+
 	if m.withJoin {
-		return m.joinRequire()
+		if err = m.joinRequire(state); err != nil {
+			return
+		}
 	}
 
 	if m.withImports {
-		return m.formatImport()
+		if err = m.formatImport(state); err != nil {
+			return
+		}
 	}
 
-	return nil
+	duration = time.Since(start)
+	return
 }
 
 //goland:noinspection GoExportedFuncWithUnexportedType

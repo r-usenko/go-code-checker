@@ -5,20 +5,19 @@ import (
 	"log"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	codeChecker "github.com/r-usenko/go-code-checker"
 )
 
 var dir = flag.String("dir", ".", "root directory with go.mod")
 
-var tidy = flag.Bool("tidy", true, "use go mod tidy")
+var tidy = flag.Bool("tidy", false, "use go mod tidy")
+
 var imp = flag.Bool("imports", false, "use goimports")
 var impPrefix = flag.String("imports-prefix", "", "group by module prefix")
 
-const (
-	binaryGo        = "go"
-	binaryGoImports = "goimports"
-)
+var write = flag.Bool("write", false, "apply changes to file")
 
 func main() {
 	flag.Parse()
@@ -31,7 +30,7 @@ func main() {
 	log.Printf("PROCESS DIRECTORY: [%s]\n", absDir)
 
 	if *tidy {
-		binary, err = exec.LookPath(binaryGo)
+		binary, err = exec.LookPath(codeChecker.BinaryGo)
 		if err != nil {
 			log.Panic(err)
 		}
@@ -40,7 +39,7 @@ func main() {
 	}
 
 	if *imp || *impPrefix != "" {
-		binary, err = exec.LookPath(binaryGoImports)
+		binary, err = exec.LookPath(codeChecker.BinaryGoImports)
 		if err != nil {
 			log.Panic(err)
 		}
@@ -53,7 +52,12 @@ func main() {
 		opts = append(opts, codeChecker.WithLocalPrefix(*impPrefix))
 	}
 
-	if err = codeChecker.New(*dir, opts...).Run(); err != nil {
+	var dur time.Duration
+	dur, err = codeChecker.New(*dir, opts...).Run(*write)
+
+	if err != nil {
 		log.Panic(err)
 	}
+
+	log.Printf("DURATION: %s", dur)
 }
