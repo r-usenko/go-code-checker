@@ -2,16 +2,18 @@ name: Go
 
 on:
   release:
-    types: [created]
+    types: [ created ]
 
 jobs:
   patch-version:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-    - name: Get major version num and update tag
-      run: |
-        echo ": $GITHUB_REPOSITORY@$GITHUB_REF_NAME"
-        go generate version.go
+      - name: Get major version num and update tag
+        run: |
+          echo ": $GITHUB_REPOSITORY@$GITHUB_REF_NAME"
+          go generate version.go
+          git commit -m "pre-release"
+          git push origin main
