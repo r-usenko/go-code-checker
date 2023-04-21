@@ -14,4 +14,4 @@ jobs:
     - name: Get major version num and update tag
       run: |
         echo ": $GITHUB_REPOSITORY@$GITHUB_REF_NAME"
-        echo ::set-env name=LD_FLAGS::"-X github.com/r-usenko/godeFmt.Version=$GITHUB_REF_NAME"
+        go generate version.go
