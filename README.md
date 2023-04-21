@@ -5,7 +5,11 @@ Install
 go install github.com/r-usenko/godeFmt/cmd/...@latest
 ```
 
-Example for sort go.mod and imports with repo prefix and apply changes to files
+Example for sort *go.mod* and *imports* with repo prefix and apply changes to files.
+
 ```shell
 godeFmt -tidy -imports-prefix=github.com/r-usenko -write -dir=.
 ```
+
+Unfortunately, due to the specificity, it is not possible to process the files in all cases without making changes to the files themselves, so that it can be used as a check. Although most of the formatter errors can be catched and rollback to the original state of the files. 
+Do not forget about this if you do not use the `-write` flag
