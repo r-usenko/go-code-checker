@@ -1,0 +1,22 @@
+name: Go
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  movetag:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Get major version num and update tag
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/}
+        MAJOR=${VERSION%%.*}
+        run: |
+          echo ": ${MAJOR}"
+          echo ": ${VERSION}"
+          echo ": $GITHUB_REF_NAME"
+          echo ": ${{  github.ref_name }}"
