@@ -20,6 +20,7 @@ var write = flag.Bool("write", false, "Applies changes to files. Otherwise, an a
 var _ = flag.Bool("version", false, "Print version")
 
 func main() {
+
 	flag.Parse()
 	if flag.NArg() == 0 {
 		flag.Usage()
