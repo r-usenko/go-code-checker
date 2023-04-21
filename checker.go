@@ -53,11 +53,11 @@ var (
 	reEmptyLines = regexp.MustCompile(`(?sm)^\s*\n`)
 )
 
-func getFiles(dir string, files []string) map[string]fData {
+func (m *module) getFiles(dir string, files []string) map[string]fData {
 	var results = make(map[string]fData)
 
 	if dir != "" {
-		dir = "/" + dir
+		dir = dir + "/"
 	}
 
 	for _, file := range files {
@@ -69,12 +69,12 @@ func getFiles(dir string, files []string) map[string]fData {
 				continue
 			}
 
-			panic(err)
+			m.logger.Panic(err)
 		}
 
 		data, err := os.ReadFile(filename)
 		if err != nil {
-			panic(err)
+			m.logger.Panic(err)
 		}
 
 		results[file] = fData{
@@ -103,7 +103,7 @@ func (m *module) joinRequire(isWrite bool) (err error) {
 		GoWorkSum,
 	}
 
-	filesBefore := getFiles(dir, fileList)
+	filesBefore := m.getFiles(dir, fileList)
 
 	fi, ok := filesBefore[GoMod]
 	if !ok {
@@ -160,7 +160,7 @@ func (m *module) joinRequire(isWrite bool) (err error) {
 		}
 
 		//Rollback
-		filesAfter := getFiles(dir, fileList)
+		filesAfter := m.getFiles(dir, fileList)
 
 		if len(filesAfter) != len(filesBefore) {
 			err = errors.Join(err, ErrDetected)
@@ -288,7 +288,7 @@ func (m *module) formatImport(isWrite bool) (err error) {
 	}
 
 	args[0] = binaryGoImportsParamWrite //replace list to write flag
-	processed := getFiles("", files)
+	processed := m.getFiles("", files)
 
 	defer func() {
 		//If we had error on save modified or go mod tidy, rollback all affected files

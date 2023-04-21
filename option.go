@@ -26,10 +26,15 @@ func (m *module) apply(opts []Option) *module {
 	return m
 }
 
+//goland:noinspection SpellCheckingInspection
 type Logger interface {
 	Print(v ...any)
 	Println(v ...any)
 	Printf(format string, v ...any)
+
+	Panic(v ...any)
+	Panicln(v ...any)
+	Panicf(format string, v ...any)
 }
 
 func WithLogger(logger Logger) Option {
