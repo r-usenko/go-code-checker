@@ -22,7 +22,9 @@ var write = flag.Bool("write", false, "apply changes to file")
 func main() {
 	flag.Parse()
 
-	var opts []codeChecker.Option
+	var opts = []codeChecker.Option{
+		codeChecker.WithLogger(log.Default()),
+	}
 	var binary string
 	var err error
 

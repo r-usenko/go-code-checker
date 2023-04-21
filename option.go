@@ -5,6 +5,7 @@ type module struct {
 	localPrefix string
 	withJoin    bool
 	withImports bool
+	logger      Logger
 }
 
 type Option interface {
@@ -23,6 +24,18 @@ func (m *module) apply(opts []Option) *module {
 	}
 
 	return m
+}
+
+type Logger interface {
+	Print(v ...any)
+	Println(v ...any)
+	Printf(format string, v ...any)
+}
+
+func WithLogger(logger Logger) Option {
+	return optionFunc(func(m *module) {
+		m.logger = logger
+	})
 }
 
 func WithJoinRequireModules() Option {
