@@ -10,10 +10,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-
-      - name: Get major version num and update tag
         with:
           ref: 'refs/heads/main'
+      - name: Get major version num and update tag
         run: |
           echo "github.com/$GITHUB_REPOSITORY@$GITHUB_REF_NAME"
           go generate version.go
