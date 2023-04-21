@@ -22,6 +22,7 @@ func main() {
 	file, _ = filepath.Abs(filepath.Dir(file) + "/../version.go")
 
 	if err := os.WriteFile(file, []byte(fmt.Sprintf(`package godeFmt
+
 //go:generate go run ./cmd/set-version.go ${GITHUB_REF_NAME}
 var Version = "%s"`, os.Args[1])), 0644); err != nil {
 		panic(err)
