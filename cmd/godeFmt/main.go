@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	codeChecker "github.com/r-usenko/go-code-checker"
+	"github.com/r-usenko/godeFmt"
 )
 
 var dir = flag.String("dir", ".", "root directory with go.mod")
@@ -22,8 +22,8 @@ var write = flag.Bool("write", false, "apply changes to file")
 func main() {
 	flag.Parse()
 
-	var opts = []codeChecker.Option{
-		codeChecker.WithLogger(log.Default()),
+	var opts = []godeFmt.Option{
+		godeFmt.WithLogger(log.Default()),
 	}
 	var binary string
 	var err error
@@ -32,30 +32,30 @@ func main() {
 	log.Printf("PROCESS DIRECTORY: [%s]\n", absDir)
 
 	if *tidy {
-		binary, err = exec.LookPath(codeChecker.BinaryGo)
+		binary, err = exec.LookPath(godeFmt.BinaryGo)
 		if err != nil {
 			log.Panic(err)
 		}
 		log.Printf("USE: [%s mod tidy] group and sort (require)\n", binary)
-		opts = append(opts, codeChecker.WithJoinRequireModules())
+		opts = append(opts, godeFmt.WithJoinRequireModules())
 	}
 
 	if *imp || *impPrefix != "" {
-		binary, err = exec.LookPath(codeChecker.BinaryGoImports)
+		binary, err = exec.LookPath(godeFmt.BinaryGoImports)
 		if err != nil {
 			log.Panic(err)
 		}
 		log.Printf("USE: [%s] group and sort\n", binary)
-		opts = append(opts, codeChecker.WithImports())
+		opts = append(opts, godeFmt.WithImports())
 	}
 
 	if *impPrefix != "" {
 		log.Printf("USE: [%s] group by repository prefix (%s)\n", binary, *impPrefix)
-		opts = append(opts, codeChecker.WithLocalPrefix(*impPrefix))
+		opts = append(opts, godeFmt.WithLocalPrefix(*impPrefix))
 	}
 
 	var dur time.Duration
-	dur, err = codeChecker.New(*dir, opts...).Run(*write)
+	dur, err = godeFmt.New(*dir, opts...).Run(*write)
 
 	if err != nil {
 		log.Panic(err)

@@ -308,10 +308,10 @@ func (m *module) formatImport(isWrite bool) (err error) {
 	}()
 
 	//First preprocess
-	errCmd = m.callStart("GROUP", outCh, errCh, dir, args) //TODO we cant separate parse and save errors (this changes will not been reverted)
-	after := getFiles("", files)
+	//errCmd = m.callStart("GROUP", outCh, errCh, dir, args) //TODO we cant separate parse and save errors (this changes will not been reverted)
+	//after := getFiles("", files)
 
-	for _, fi := range after {
+	for _, fi := range processed {
 		m.logger.Printf("REPLACE [GROUP]: %s", fi.filename)
 
 		newData := reImport.ReplaceAllFunc(fi.data, func(data []byte) []byte {
