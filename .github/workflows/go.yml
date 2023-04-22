@@ -7,7 +7,7 @@ on:
 
 jobs:
   patch-version:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/' && github.ref) && "!contains(github.event.head_commit.message, 'Go')"
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/' && github.ref) && !contains(github.event.head_commit.message, 'Go')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
