@@ -11,6 +11,9 @@ jobs:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/' && github.ref)
     runs-on: ubuntu-latest
     steps:
+      - name: Start
+        run: echo "${GITHUB_WORKFLOW_SHA}:${GITHUB_SHA}:${GITHUB_EVENT_NAME}:${GITHUB_ACTION}:${GITHUB_WORKFLOW}:${RUNNER_NAME}"
+
       - uses: actions/checkout@v3
         with:
           token: ${{ secrets.ACCESS_ACT }}
