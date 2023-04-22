@@ -11,6 +11,22 @@ jobs:
     env:
       VERSION: ${GITHUB_REF#refs/tags/}
     steps:
+      - name: Variable
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+
+      - name: Variable1
+        run: |
+          echo "$VERSION"
+
+      - name: Variable2
+        run: |
+          echo "${VERSION}"
+
+      - name: Variable3
+        run: |
+          echo "${{ VERSION }}"
+
       - uses: actions/checkout@v3
         with:
           ref: 'refs/heads/main'
@@ -19,7 +35,6 @@ jobs:
       - name: Get major version num and update tag
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         run: |
-          VERSION=${GITHUB_REF#refs/tags/}
           echo "[${VERSION}] https://github.com/settings/emails for get user.email"
           git config user.email 113434281+r-usenko@users.noreply.github.com
           git config user.name github-actions[bot]
