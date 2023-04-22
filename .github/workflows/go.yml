@@ -34,9 +34,6 @@ jobs:
           git add .
           git commit -m "pre-release"
 
-      - name: Push main
-        run: git push origin main
-
       - name: Create tag
         run: git tag -a -m "pre-release" ${{ env.GITHUB_VER }}
 
