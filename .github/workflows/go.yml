@@ -1,5 +1,4 @@
 name: PATCHER
-run-name: PATCHER
 
 on:
   push:
