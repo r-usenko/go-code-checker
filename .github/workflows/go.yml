@@ -28,4 +28,4 @@ jobs:
           git commit -m "pre-release"
 
           git tag -a ${{ github.ref }}
-          git push origin ${{ GITHUB_REF_NAME }}
+          git push origin $GITHUB_REF_NAME
