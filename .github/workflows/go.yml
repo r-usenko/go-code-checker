@@ -23,10 +23,11 @@ jobs:
           git config user.email 113434281+r-usenko@users.noreply.github.com
           git config user.name github-actions[bot]
 
-#      - name: Delete old Tag
-#        run: |
-#          git tag -d ${{ github.ref }}
-#          git push --delete origin ${{ github.ref }}
+      - name: Delete old Tag Local
+        run: git tag -d ${{ github.ref }}
+
+      - name: Delete old Tag Remote
+        run: git push --delete origin ${{ github.ref }}
 
       - name: Patch
         run: |
