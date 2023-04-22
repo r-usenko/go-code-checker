@@ -23,10 +23,6 @@ jobs:
         run: |
           echo "${VERSION}"
 
-      - name: Variable3
-        run: |
-          echo "${{ VERSION }}"
-
       - uses: actions/checkout@v3
         with:
           ref: 'refs/heads/main'
