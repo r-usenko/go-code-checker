@@ -17,17 +17,9 @@ jobs:
       - name: Set var
         run: echo "GITHUB_VER=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
 
-      - name: Set exist
-        id: tagExist
-        run: git tag -l ${GITHUB_VER}
-
-      - name: Check exist
-        if: steps.tagExist.outputs == ''
-        run: fuck-my-brain
-        continue-on-error: false
-
       - name: Set config
         run: |
+          echo "MSG: ${{ github.event.head_commit.message }}"
           git config user.email bot@users.noreply.github.com
           git config user.name ${GITHUB_ACTOR}
 
