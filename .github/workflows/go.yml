@@ -28,7 +28,6 @@ jobs:
           go generate version.go
           git add .
           git commit -m "pre-release"
-          
-          echo "$VERSION -> ${{ github.ref }}"
-          git tag -a ${{ github.ref }}
-          git push origin $VERSION
+
+          git tag -a $(basename "${{ github.ref }}")
+          git push origin $(basename "${{ github.ref }}")
