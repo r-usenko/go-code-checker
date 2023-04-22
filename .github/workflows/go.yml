@@ -27,5 +27,5 @@ jobs:
           git add .
           git commit -m "pre-release"
 
-          git tag -a -m ${{ github.ref }} ${{ github.ref }}
-          git push origin ${{ github.ref }}
+          git tag -a ${{ github.ref }}
+          git push origin ${{ GITHUB_REF_NAME }}
