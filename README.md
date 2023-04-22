@@ -2,7 +2,7 @@
 
 Install
 ```shell
-GOPROXY=direct git fetch && go install -ldflags="-X 'github.com/r-usenko/godeFmt.Version=`git describe --tags --abbrev=0`'" github.com/r-usenko/godeFmt/cmd/godeFmt@latest
+GOPROXY=direct github.com/r-usenko/godeFmt/cmd/godeFmt@latest
 ```
 
 Example for sort *go.mod* and *imports* with repo prefix and apply changes to files.
