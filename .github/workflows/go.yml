@@ -6,24 +6,23 @@ on:
       - 'v*'
 
 jobs:
-  update-tag:
+  patch-version:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
 
-      - name: Replace
+    steps:
+      - uses: actions/checkout@v3
         with:
           ref: 'refs/heads/main'
           token: ${{ secrets.ACCESS_ACT }}
+      - name: Get major version num and update tag
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         run: |
-          go generate version.go
           git config user.email "$GITHUB_ACTOR+github-actions[bot]@users.noreply.github.com"
           git config user.name github-actions[bot]
           git tag -d ${{ github.ref }}
           git push --delete origin ${{ github.ref }}
+          go generate version.go
           git add .
-          git commit --allow-empty -m "pre-release"
+          git commit -m "pre-release"
           git tag ${{ github.ref }}
           git push origin ${{ github.ref }}
