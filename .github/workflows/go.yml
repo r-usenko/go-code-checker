@@ -3,23 +3,42 @@ name: Go
 on:
   push:
     tags:
-      - '*'
+      - 'v*'
 
 jobs:
-  patch-version:
+  update-tag:
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
         with:
           ref: 'refs/heads/main'
           token: ${{ secrets.ACCESS_ACT }}
-      - name: Get major version num and update tag
+
+      - name: Create New Tag
+        uses: actions/create-release@v1
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        env:
+          NEW_TAG: ${{ github.ref }}
+          OLD_TAG: ${{ github.ref }}
+        with:
+          ref: 'refs/heads/main'
+          token: ${{ secrets.ACCESS_ACT }}
+          tag_name: ${{ env.NEW_TAG }}
+          prerelease: false
+          overwrite: true
+
+      - name: Update Tag
         run: |
-          echo "github.com/$GITHUB_REPOSITORY@$GITHUB_REF_NAME"
           go generate version.go
           git config user.email "$GITHUB_ACTOR+github-actions[bot]@users.noreply.github.com"
           git config user.name github-actions[bot]
+          git tag -d $OLD_TAG
+          git push --delete origin $OLD_TAG
           git add .
-          git commit -m "pre-release"
-          git push origin main
+          git commit --allow-empty -m "pre-release"
+          git tag $NEW_TAG
+          git push origin $NEW_TAG
+        env:
+          NEW_TAG: ${{ github.ref }}
+          OLD_TAG: ${{ github.ref }}
