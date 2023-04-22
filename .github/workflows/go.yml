@@ -1,4 +1,5 @@
-name: Go
+name: PATCHER
+run-name: PATCHER
 
 on:
   push:
@@ -12,7 +13,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-#          ref: 'refs/heads/main'
           token: ${{ secrets.ACCESS_ACT }}
 
       - name: Set var
