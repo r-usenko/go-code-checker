@@ -27,7 +27,6 @@ jobs:
           git add .
           git commit -m "pre-release"
           
-          VERSION=${GITHUB_REF#refs/tags/}
-          echo "${{ VERSION }} -> ${{ github.ref }}"
+          echo "${GITHUB_REF#refs/tags/} -> ${{ github.ref }}"
           git tag -a ${{ github.ref }}
-          git push origin $GITHUB_REF_NAME
+          git push origin ${GITHUB_REF#refs/tags/}
