@@ -28,7 +28,6 @@ jobs:
 
       - name: Patch
         run: |
-          go checkout .
           go generate version.go
           git add .
           git commit -m "pre-release"
