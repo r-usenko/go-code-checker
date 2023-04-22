@@ -21,8 +21,10 @@ jobs:
           git config user.name github-actions[bot]
           git tag -d ${{ github.ref }}
           git push --delete origin ${{ github.ref }}
+          
           go generate version.go
           git add .
           git commit -m "pre-release"
-          git tag ${{ github.ref }}
+
+          git tag -a -m ${{ github.ref }} ${{ github.ref }}
           git push origin ${{ github.ref }}
