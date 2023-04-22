@@ -26,7 +26,8 @@ jobs:
           go generate version.go
           git add .
           git commit -m "pre-release"
-
-          echo "$GITHUB_REF_NAME -> ${{ github.ref }}"
+          
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "${VERSION} -> ${{ github.ref }}"
           git tag -a ${{ github.ref }}
           git push origin $GITHUB_REF_NAME
