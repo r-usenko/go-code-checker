@@ -7,7 +7,7 @@ on:
 
 jobs:
   patch-version:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/' && github.ref)
+    if: github.event_name == 'push' && github.event.head_commit.message != 'pre-release' && startsWith(github.ref, 'refs/tags/' && github.ref)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -19,7 +19,6 @@ jobs:
 
       - name: Set config
         run: |
-          echo "MSG: ${{ github.event.head_commit.message }}"
           git config user.email bot@users.noreply.github.com
           git config user.name ${GITHUB_ACTOR}
 
