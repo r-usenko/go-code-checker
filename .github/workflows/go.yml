@@ -28,6 +28,7 @@ jobs:
 
       - name: Patch
         run: |
+          go checkout .
           go generate version.go
           git add .
           git commit -m "pre-release"
@@ -40,6 +41,3 @@ jobs:
 
       - name: Push tag
         run: git push origin ${{ env.GITHUB_VER }}
-
-      - name: END
-        run: echo ${{ env.GITHUB_VER }}
