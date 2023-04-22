@@ -7,9 +7,8 @@ on:
 
 jobs:
   patch-version:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
-    env:
-      version: "${GITHUB_REF#refs/tags/}"
     steps:
       - uses: actions/checkout@v3
         with:
@@ -26,8 +25,8 @@ jobs:
 
       - name: Delete old Tag
         run: |
-          git tag -d ${{ env.GITHUB_VER }}
-          git push --delete origin ${{ env.GITHUB_VER }}
+          git tag -d ${{ github.ref }}
+          git push --delete origin ${{ github.ref }}
 
       - name: Patch
         run: |
@@ -42,5 +41,4 @@ jobs:
         run: git push origin ${{ env.GITHUB_VER }}
 
       - name: END
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         run: echo ${{ env.GITHUB_VER }}
