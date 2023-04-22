@@ -29,12 +29,14 @@ jobs:
 #          git push --delete origin ${{ github.ref }}
 
       - name: Patch
+        id: patch
         run: |
           go generate version.go
           git add .
           git commit -m "pre-release"
 
       - name: Create tag
+        if: steps.patch
         run: git tag -a ${{ env.GITHUB_VER }}
 
       - name: Push tag
