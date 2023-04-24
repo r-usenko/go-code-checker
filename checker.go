@@ -205,9 +205,39 @@ func (m *module) formatImport(isWrite bool) (err error) {
 	muMutex.Lock()
 	defer muMutex.Unlock()
 
-	dir, err := filepath.Abs(m.path)
+	var dir string
+	dir, err = filepath.Abs(m.path)
 	if err != nil {
 		return
+	}
+
+	var srcFiles []string
+	err = filepath.Walk(dir,
+		func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+
+			if filepath.Ext(info.Name()) == ".go" {
+				srcFiles = append(srcFiles, path)
+			}
+			return nil
+		})
+	if err != nil {
+		return
+	}
+
+	srcProcessed := m.getFiles("", srcFiles)
+
+	for _, fi := range srcProcessed {
+		m.logger.Printf("REPLACE [ALL]: %s", fi.filename)
+
+		newData := reImport.ReplaceAllFunc(fi.data, func(data []byte) []byte {
+			return reEmptyLines.ReplaceAll(data, nil)
+		})
+		if err = os.WriteFile(fi.filename, newData, fi.info.Mode()); err != nil {
+			return //TODO Rollback
+		}
 	}
 
 	var args = []string{binaryGoImportsParamList} //list only
