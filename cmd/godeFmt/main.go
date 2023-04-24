@@ -20,20 +20,20 @@ var write = flag.Bool("write", false, "Applies changes to files. Otherwise, an a
 var _ = flag.Bool("version", false, "Print version")
 
 func main() {
-
 	flag.Parse()
-	if flag.NArg() == 0 {
+	if len(os.Args) == 0 {
 		flag.Usage()
 		os.Exit(2)
 	}
-	switch flag.Arg(0) {
+
+	switch os.Args[1] {
 	case "version", "-version", "--version":
 		fmt.Println(godeFmt.Version)
 		os.Exit(0)
 	default:
 		var exists bool
 		flag.VisitAll(func(f *flag.Flag) {
-			if flag.Arg(0) == f.Name {
+			if os.Args[1] == "-"+f.Name {
 				exists = true
 			}
 		})
